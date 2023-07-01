@@ -1,5 +1,11 @@
 #include <iostream>
 
+void space(int s)
+{
+    for (int i = 0; i < s; i++)
+        std::cout << "    ";
+}
+
 class expr {
 public:
     expr()
@@ -31,6 +37,33 @@ public:
     int m_level;
 };
 
+class stmt : public expr {
+public:
+    stmt(std::string s, int level = 0)
+        : m_stmt(s)
+    {
+        m_level = level;
+    }
+
+    void setStmt(std::string s)
+    {
+        m_stmt = s;
+    }
+    void gen()
+    {
+        space(m_level);
+        std::cout << m_stmt;
+        std::cout << "\n";
+        if (m_child != nullptr)
+            m_child->gen();
+        // std::cout << " // address : " << this << "\n";
+        if (m_sibling != nullptr)
+            m_sibling->gen();
+    }
+
+private:
+    std::string m_stmt;
+};
 class index : public expr {
 public:
     index(std::string index_name, int level = 0, int index = 0)
@@ -51,10 +84,12 @@ public:
     {
         std::string v_name = child_name + std::to_string(setChild);
         std::string p_name = child_name;
-        for (int i = 0; i < m_level; i++)
-            std::cout << "    "; // space;
+        space(m_level);
         std::cout << "int " << p_name << " = " << std::to_string(a) << " * " << v_name << " + " << std::to_string(b);
         std::cout << ";\n";
+        if (m_child != nullptr)
+            m_child->gen();
+
         // std::cout << " // address : " << this << "\n";
         if (m_sibling != nullptr)
             m_sibling->gen();
@@ -99,16 +134,12 @@ public:
     {
         std::string v_name = child_name + std::to_string(intChild);
         std::string p_name = child_name;
-        for (int i = 0; i < m_level; i++)
-            std::cout << "    "; // space;
-
+        space(m_level);
         std::cout << "for (int " << v_name << " = " << m_start << "; " << v_name << " < " << m_end << "; " << v_name << " += " << m_step << ") {\n";
         // std::cout << " // address : " << this << "\n";
         if (m_child != nullptr)
             m_child->gen();
-
-        for (int i = 0; i < m_level; i++)
-            std::cout << "    "; // space;
+        space(m_level);
         std::cout << "}\n";
 
         if (m_sibling != nullptr)
@@ -125,6 +156,8 @@ private:
     index* childdex_ptr;
 };
 
+class functopn : public expr {
+};
 class ast : public expr {
 
 public:
@@ -156,9 +189,19 @@ public:
         return loop;
     }
 
+    stmt* create_stmt(std::string str, int level = 0)
+    {
+        stmt* s = new stmt(str, level);
+        return s;
+    }
+
 private:
     expr* m_start;
 };
+
+void split(expr* target, int size, int index = 0)
+{
+}
 
 void swap_loop_index(expr* i, expr* j)
 {
@@ -188,8 +231,10 @@ int main()
     for_loop* i = AST.create_in_loop("i", 0, 128, 0);
     for_loop* j = AST.create_in_loop("j", 0, 128, 1);
     for_loop* k = AST.create_in_loop("k", 0, 128, 2);
+    stmt* s = AST.create_stmt("C[i,j] = A[i,k] * B[k,j];", 3);
     i->getChild()->setSibling(j);
     j->getChild()->setSibling(k);
+    k->getIndex()->setSibling(s);
     i->gen();
     return 0;
 }
