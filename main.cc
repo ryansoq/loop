@@ -22,6 +22,11 @@ public:
     {
         return m_sibling;
     }
+    expr* getPrev()
+    {
+        return m_prev;
+    }
+
     void setChild(expr* setChild)
     {
         m_child = setChild;
@@ -32,6 +37,12 @@ public:
         m_sibling = setSibling;
     }
 
+    void setPrev(expr* setPrev)
+    {
+        m_prev = setPrev;
+    }
+
+    expr* m_prev;
     expr* m_sibling;
     expr* m_child;
     int m_level;
@@ -82,10 +93,9 @@ public:
 
     void gen()
     {
-        std::string v_name = child_name + std::to_string(setChild);
         std::string p_name = child_name;
         space(m_level);
-        std::cout << "int " << p_name << " = " << std::to_string(a) << " * " << v_name << " + " << std::to_string(b);
+        std::cout << "int " << p_name << " = " << from_loop;
         std::cout << ";\n";
         if (m_child != nullptr)
             m_child->gen();
@@ -94,13 +104,13 @@ public:
         if (m_sibling != nullptr)
             m_sibling->gen();
     }
+    std::string from_loop;
 
 private:
     int setChild;
     std::string child_name;
     std::string ax_b;
     int a = 1, x, b = 0;
-    // expr* m_sibling;
 };
 
 class for_loop : public expr {
@@ -119,10 +129,26 @@ public:
     int start() const { return m_start; }
     int end() const { return m_end; }
     int step() const { return m_step; }
+    int level() const { return m_level; }
 
     void setIndex(index* index)
     {
         childdex_ptr = index;
+    }
+
+    void setStart(int value)
+    {
+        m_start = value;
+    }
+
+    void setEnd(int value)
+    {
+        m_end = value;
+    }
+
+    void setStep(int value)
+    {
+        m_step = value;
     }
 
     index* getIndex()
@@ -130,10 +156,25 @@ public:
         return childdex_ptr;
     }
 
+    std::string getChildName()
+    {
+        return child_name;
+    }
+
+    int getIntChild()
+    {
+        return intChild;
+    }
+
     void gen()
     {
         std::string v_name = child_name + std::to_string(intChild);
         std::string p_name = child_name;
+        if (childdex_ptr->from_loop == "")
+            childdex_ptr->from_loop = std::to_string(a) + " * " + v_name + " + " + std::to_string(b);
+        else
+            childdex_ptr->from_loop += " + " + std::to_string(a) + " * " + v_name + " + " + std::to_string(b);
+
         space(m_level);
         std::cout << "for (int " << v_name << " = " << m_start << "; " << v_name << " < " << m_end << "; " << v_name << " += " << m_step << ") {\n";
         // std::cout << " // address : " << this << "\n";
@@ -154,6 +195,8 @@ private:
     std::string child_name;
 
     index* childdex_ptr;
+    std::string ax_b;
+    int a = 1, x, b = 0;
 };
 
 class functopn : public expr {
@@ -186,6 +229,7 @@ public:
         index* loop_index = new index(index_name, level + 1);
         loop->setChild(loop_index);
         loop->setIndex(loop_index);
+        loop_index->setPrev(loop);
         return loop;
     }
 
@@ -199,14 +243,43 @@ private:
     expr* m_start;
 };
 
-void split(expr* target, int size, int index = 0)
+void split(for_loop* target, int size, int index = 0)
 {
+    target->setStep(size);
+    for_loop* loop = new for_loop(target->getChildName(), 0, size, target->getIntChild() + 1, 1,
+        target->level() + 1);
+    loop->setIndex(target->getIndex());
+    loop->setChild(target->getIndex());
+    target->getIndex()->setPrev(loop);
+    target->setChild(loop);
 }
 
-void swap_loop_index(expr* i, expr* j)
+void swap(expr* i, expr* j)
 {
-    expr* i_child = i->getChild();
-    expr* j_child = j->getChild();
+    expr* i_prev = i->getPrev();
+    expr* j_prev = j->getPrev();
+    expr* i_ch = i->getChild();
+    expr* i_sb = i->getSibling();
+    expr* j_ch = j->getChild();
+    expr* j_sb = j->getSibling();
+
+    i->setChild(j_ch);
+    i->setSibling(j_sb);
+    j->setChild(i_ch);
+    j->setSibling(i_sb);
+
+    int level_temp = i->m_level;
+    i->m_level = j->m_level;
+    j->m_level = level_temp;
+
+    i_prev->setChild(j);
+    j_prev->setChild(i);
+}
+
+void swap_loop_index(for_loop* i, for_loop* j)
+{
+    expr* i_child = i->getIndex();
+    expr* j_child = j->getIndex();
     expr* i_child_ch = i_child->getChild();
     expr* i_child_sb = i_child->getSibling();
     expr* j_child_ch = j_child->getChild();
@@ -235,6 +308,10 @@ int main()
     i->getChild()->setSibling(j);
     j->getChild()->setSibling(k);
     k->getIndex()->setSibling(s);
+    // split(i, 16);
+    // split(j, 16);
+    // split(k, 16);
+    // swap(i->getIndex(), k->getIndex());
     i->gen();
     return 0;
 }
