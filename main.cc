@@ -1,4 +1,7 @@
 #include <iostream>
+#include <vector>
+
+//#define DEBUG
 
 void space(int s)
 {
@@ -13,39 +16,66 @@ public:
         , m_child(nullptr)
     {
     }
+
     virtual void gen() = 0; // Pure Virtual Fun
+
     expr* getChild()
     {
         return m_child;
     }
+
     expr* getSibling()
     {
         return m_sibling;
     }
+
     expr* getPrev()
     {
         return m_prev;
     }
 
-    void setChild(expr* setChild)
+    void setPrev(expr* Prev)
     {
-        m_child = setChild;
+        m_prev = Prev;
     }
 
-    void setSibling(expr* setSibling)
+    void setChild(expr* Child)
     {
-        m_sibling = setSibling;
+        m_child = Child;
+        if (Child != nullptr) {
+            Child->setPrev(this);
+            Child->prev_att = "C";
+        }
     }
 
-    void setPrev(expr* setPrev)
+    void setSibling(expr* Sibling)
     {
-        m_prev = setPrev;
+        m_sibling = Sibling;
+        if (Sibling != nullptr) {
+            Sibling->setPrev(this);
+            Sibling->prev_att = "S";
+        }
+    }
+
+    void find_position()
+    {
+        expr* prev = getPrev();
+        if (prev != nullptr) {
+            if (prev_att == "C") {
+                m_level = prev->m_level + 1;
+                space(prev->m_level + 1);
+            } else {
+                m_level = prev->m_level;
+                space(prev->m_level);
+            }
+        }
     }
 
     expr* m_prev;
     expr* m_sibling;
     expr* m_child;
     int m_level;
+    std::string prev_att = "";
 };
 
 class stmt : public expr {
@@ -62,12 +92,15 @@ public:
     }
     void gen()
     {
-        space(m_level);
+        find_position();
+
         std::cout << m_stmt;
         std::cout << "\n";
         if (m_child != nullptr)
             m_child->gen();
-        // std::cout << " // address : " << this << "\n";
+#ifdef DEBUG
+        std::cout << " // address : " << this << ", prev_address : " << getPrev() << "\n";
+#endif
         if (m_sibling != nullptr)
             m_sibling->gen();
     }
@@ -75,6 +108,7 @@ public:
 private:
     std::string m_stmt;
 };
+
 class index : public expr {
 public:
     index(std::string index_name, int level = 0, int index = 0)
@@ -82,25 +116,21 @@ public:
         , setChild(index)
         , expr()
     {
-        // m_sibling = nullptr;
         m_level = level;
-    }
-
-    void setSibling(expr* setSibling)
-    {
-        m_sibling = setSibling;
     }
 
     void gen()
     {
+        find_position();
+
         std::string p_name = child_name;
-        space(m_level);
         std::cout << "int " << p_name << " = " << from_loop;
         std::cout << ";\n";
         if (m_child != nullptr)
             m_child->gen();
-
-        // std::cout << " // address : " << this << "\n";
+#ifdef DEBUG
+        std::cout << " // address : " << this << ", prev_address : " << getPrev() << "\n";
+#endif
         if (m_sibling != nullptr)
             m_sibling->gen();
     }
@@ -133,7 +163,7 @@ public:
 
     void setIndex(index* index)
     {
-        childdex_ptr = index;
+        index_ptr = index;
     }
 
     void setStart(int value)
@@ -151,9 +181,24 @@ public:
         m_step = value;
     }
 
+    void setBound(int value)
+    {
+        m_bound = value;
+    }
+
+    void setA(int value)
+    {
+        a = value;
+    }
+
+    void setSplit(bool value)
+    {
+        isSplit = value;
+    }
+
     index* getIndex()
     {
-        return childdex_ptr;
+        return index_ptr;
     }
 
     std::string getChildName()
@@ -166,18 +211,32 @@ public:
         return intChild;
     }
 
+    int getEnd()
+    {
+        return m_end;
+    }
+
     void gen()
     {
+        find_position();
+
         std::string v_name = child_name + std::to_string(intChild);
         std::string p_name = child_name;
-        if (childdex_ptr->from_loop == "")
-            childdex_ptr->from_loop = std::to_string(a) + " * " + v_name + " + " + std::to_string(b);
-        else
-            childdex_ptr->from_loop += " + " + std::to_string(a) + " * " + v_name + " + " + std::to_string(b);
 
-        space(m_level);
-        std::cout << "for (int " << v_name << " = " << m_start << "; " << v_name << " < " << m_end << "; " << v_name << " += " << m_step << ") {\n";
-        // std::cout << " // address : " << this << "\n";
+        if (index_ptr->from_loop == "")
+            index_ptr->from_loop = std::to_string(a) + " * " + v_name + " + " + std::to_string(b);
+        else
+            index_ptr->from_loop += " + " + std::to_string(a) + " * " + v_name + " + " + std::to_string(b);
+
+        if (!isSplit)
+            std::cout << "for (int " << v_name << " = " << m_start << "; " << v_name << " < " << m_end << "; " << v_name << " += " << m_step << ") {\n";
+        else {
+            std::string p_name = child_name + std::to_string(intChild - 1); // parent name
+            std::cout << "for (int " << v_name << " = " << p_name << "; " << v_name << " < std::min(" << p_name << " + " << m_end << ", " << m_bound << "); " << v_name << " += " << m_step << ") {\n";
+        }
+#ifdef DEBUG
+        std::cout << " // address : " << this << ", prev_address : " << getPrev() << "\n";
+#endif
         if (m_child != nullptr)
             m_child->gen();
         space(m_level);
@@ -192,14 +251,40 @@ private:
     int m_end;
     int m_step;
     int intChild;
+    int m_bound;
     std::string child_name;
 
-    index* childdex_ptr;
+    index* index_ptr;
     std::string ax_b;
     int a = 1, x, b = 0;
+    bool isSplit = false;
 };
 
-class functopn : public expr {
+class function : public expr {
+public:
+    function(std::string s, int level = 0)
+        : m_name(s)
+    {
+        m_name = s;
+    }
+
+    void gen()
+    {
+        find_position();
+        std::cout << m_name;
+        std::cout << " {\n";
+        if (m_child != nullptr)
+            m_child->gen();
+#ifdef DEBUG
+        std::cout << " // address : " << this << ", prev_address : " << getPrev() << "\n";
+#endif
+        std::cout << "}\n";
+        if (m_sibling != nullptr)
+            m_sibling->gen();
+    }
+
+private:
+    std::string m_name;
 };
 class ast : public expr {
 
@@ -229,7 +314,6 @@ public:
         index* loop_index = new index(index_name, level + 1);
         loop->setChild(loop_index);
         loop->setIndex(loop_index);
-        loop_index->setPrev(loop);
         return loop;
     }
 
@@ -243,26 +327,56 @@ private:
     expr* m_start;
 };
 
-void split(for_loop* target, int size, int index = 0)
+for_loop* split(for_loop* target, int size, int index = 0)
 {
     target->setStep(size);
     for_loop* loop = new for_loop(target->getChildName(), 0, size, target->getIntChild() + 1, 1,
         target->level() + 1);
+    loop->setSplit(true);
     loop->setIndex(target->getIndex());
     loop->setChild(target->getIndex());
-    target->getIndex()->setPrev(loop);
+    loop->setBound(target->getEnd());
     target->setChild(loop);
+    target->setA(0);
+
+    return loop;
 }
 
-void swap(expr* i, expr* j)
+// insert i to j below
+void insert(index* i, index* j)
 {
     expr* i_prev = i->getPrev();
     expr* j_prev = j->getPrev();
+
+    std::string i_prev_att = i->prev_att;
+    std::string j_prev_att = j->prev_att;
+
+    expr* i_sb = i->getSibling();
+    if (i_prev_att == "C")
+        i_prev->setChild(i_sb);
+    if (i_prev_att == "S")
+        i_prev->setSibling(i_sb);
+
+    i->setSibling(j);
+
+    if (j_prev_att == "C")
+        j_prev->setChild(i);
+    if (j_prev_att == "S")
+        j_prev->setSibling(i);
+
+    i->m_level = j->m_level;
+}
+void swap(expr* i, expr* j)
+{
+    std::cout << " // i : " << i << ", j : " << j << "\n";
+
+    expr* i_prev = i->getPrev();
+    expr* j_prev = j->getPrev();
+
     expr* i_ch = i->getChild();
     expr* i_sb = i->getSibling();
     expr* j_ch = j->getChild();
     expr* j_sb = j->getSibling();
-
     i->setChild(j_ch);
     i->setSibling(j_sb);
     j->setChild(i_ch);
@@ -272,8 +386,10 @@ void swap(expr* i, expr* j)
     i->m_level = j->m_level;
     j->m_level = level_temp;
 
-    i_prev->setChild(j);
-    j_prev->setChild(i);
+    if (i_prev != nullptr)
+        i_prev->setChild(j);
+    if (j_prev != nullptr)
+        j_prev->setChild(i);
 }
 
 void swap_loop_index(for_loop* i, for_loop* j)
@@ -298,20 +414,34 @@ void swap_loop_index(for_loop* i, for_loop* j)
     j->setChild(i_child);
 }
 
+void schedule(std::vector<expr*> sh)
+{
+    for (auto i = 0; i < sh.size() - 1; i++) {
+        sh[i]->setChild(sh[i + 1]);
+    }
+}
+
 int main()
 {
     ast AST;
-    for_loop* i = AST.create_in_loop("i", 0, 128, 0);
-    for_loop* j = AST.create_in_loop("j", 0, 128, 1);
-    for_loop* k = AST.create_in_loop("k", 0, 128, 2);
-    stmt* s = AST.create_stmt("C[i,j] = A[i,k] * B[k,j];", 3);
-    i->getChild()->setSibling(j);
-    j->getChild()->setSibling(k);
-    k->getIndex()->setSibling(s);
-    // split(i, 16);
-    // split(j, 16);
-    // split(k, 16);
-    // swap(i->getIndex(), k->getIndex());
-    i->gen();
+    function* func = new function("void matmul(float A, float B, float C)");
+    for_loop* i = AST.create_in_loop("i", 0, 128);
+    for_loop* j = AST.create_in_loop("j", 0, 128);
+    for_loop* k = AST.create_in_loop("k", 0, 128);
+    stmt* s = AST.create_stmt("C[i * 128 + j] += A[i * 128 + k] * B[k * 128 + j];");
+    i->getIndex()->setSibling(j);
+    j->getIndex()->setSibling(k);
+
+    auto i1 = split(i, 16);
+    auto j1 = split(j, 16);
+    auto k1 = split(k, 16);
+
+    insert(k->getIndex(), j->getIndex());
+    insert(i->getIndex(), j->getIndex());
+    j->getIndex()->setSibling(s);
+    schedule({ i, j, k, k1, i1, j1 });
+
+    func->setChild(i);
+    func->gen();
     return 0;
 }
